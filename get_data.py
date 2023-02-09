@@ -179,7 +179,7 @@ def df_to_sql(df, database='match_entries.db', table_name='player_items_champion
     stores dataframe into a sql database. appends data to table if tabel already exists.
     '''
     conn = sqlite3.connect(database)
-    df.to_sql(name="player_items_champions", con=conn, if_exists='append')
+    df.to_sql(name="player_items_champions", con=conn, if_exists='append', index=False)
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
