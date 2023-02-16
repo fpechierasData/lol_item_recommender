@@ -2,7 +2,12 @@ import numpy as np
 import pandas as pd
 import json
 import argparse
+import requests
 from scipy.spatial import KDTree
+
+# Disable SSL warnings
+requests.packages.urllib3.disable_warnings()
+
 
 def load_df(filepath='match_entries.csv'):
     """Load data from csv and return as pandas dataframe"""
@@ -131,11 +136,41 @@ def item_recommendations(result, item_data):
 
     return item_recs_filtered
 
+def get_client_champ_data(install_path="C:/Riot Games/League of Legends/"):
+    '''Get champ select data from local client'''
+    f = open(install_path+"lockfile", "r")
+    client_info = f.read().split(sep=":")
+    f.close()
+
+    port = client_info[2]
+    pw = client_info[3]
+    auth=('riot', pw) #auth tuple for requests. riot static username, password changes on client restart
+
+    url = "https://127.0.0.1:"+port
+    champ_sel = "/lol-champ-select/v1/session"
+    current_champ = "/lol-champ-select/v1/current-champion"
+    data = requests.get((url + champ_sel), auth=auth, verify=False)
+    self_champ = requests.get((url + current_champ), auth=auth, verify=False).json()
+
+    # construct champ list
+    allies = [x['championId'] for x in data.json()['myTeam'] if x['championId'] != self_champ]
+    enemies = [x['championId'] for x in data.json()['theirTeam']]
+    champ_list = [self_champ] + allies + enemies
+
+    return champ_list
+
+
+
 def main():
     parser = argparse.ArgumentParser(description='Get item recommendations for a given champion')
-    parser.add_argument('champ_names', type=str, nargs='+', help='Champion names, 0 = self, 1-4 = allies, 5-9 = enemies')
+    parser.add_argument('-m', '--manual', dest='champ_names', type=str, nargs='+', required=False, help='Champion names as strings, 0 = self, 1-4 = allies, 5-9 = enemies')
+    parser.add_argument('-c', '--client', dest='client', action='store_true', required=False, help='Get champion data from client')
     args = parser.parse_args()
-    champ_names = args.champ_names
+
+    if args.champ_names is None and args.client is False:
+        print('No arguments given, please use -h for help')
+        return
+    
     #load in data
     print('Loading dataframe...')
     df = load_df()
@@ -150,7 +185,17 @@ def main():
     champ_df = load_champ_df()
     #convert query
     print('Converting query...')
-    champ_list = champ_name_to_id(champ_df, champ_names)
+    
+    if args.client:
+        try:
+            champ_list = get_client_champ_data()
+        except:
+            print('Client not running or no game in progress')
+            return
+    else:
+        champ_names = args.champ_names
+        champ_list = champ_name_to_id(champ_df, champ_names)
+
     summed_features = convert_query(champ_list, champ_df, norm_dict)
     #query
     print('Querying...')
@@ -160,6 +205,7 @@ def main():
     item_data = load_item_data()
     #get item recommendations
     print('Getting item recommendations...')
+    print(f"\n\nRecommended items for your champ, in order of build frequency in similar games:")
     item_recs = item_recommendations(result, item_data)
 
     print([item_data[str(x)]['name'] for x in item_recs])
