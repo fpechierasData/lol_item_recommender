@@ -9,7 +9,7 @@ from scipy.spatial import KDTree
 requests.packages.urllib3.disable_warnings()
 
 
-def load_df(filepath='match_entries.csv'):
+def load_df(filepath='match_entry.csv'):
     """Load data from csv and return as pandas dataframe"""
     df = pd.read_csv(filepath)
     return df
@@ -20,7 +20,7 @@ def normalize_df(df):
     df_scaled = df.copy()
     #store max, min in dict
     norm_dict = {}
-    for column in df.columns[33:]:
+    for column in df.columns[31:]:
         norm_dict[column] = [df_scaled[column].max(), df_scaled[column].min()]
         df_scaled[column] = (df_scaled[column] - df_scaled[column].min()) / (df_scaled[column].max() - df_scaled[column].min()) 
 
@@ -33,7 +33,7 @@ def create_trees(df):
 
     # create a KDTree for each champion
     for championId in df['championId'].unique():
-        champion_data = df[df['championId'] == championId].iloc[:,33:]
+        champion_data = df[df['championId'] == championId].iloc[:,31:]
         kdt_dict[championId] = KDTree(champion_data)
 
     return kdt_dict

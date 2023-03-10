@@ -67,7 +67,7 @@ def get_champ_mastery(summoner_ids, summid_to_puuid, points=100000):
 
     return mastery_dict
 
-def get_match_data(mastery_dict, num_matches=50):
+def get_match_data(mastery_dict, num_matches=10):
     '''
     takes in mastery_dict and returns a list of dicts of match data, as well as a set of all match IDs scanned
     num_matches: between 1-100
@@ -83,60 +83,57 @@ def get_match_data(mastery_dict, num_matches=50):
     features = ['puuid', 'championId', 'item0', 'item1', 'item2', 'item3', 'item4', 'item5', 'item6', 
                 'kills', 'deaths', 'assists', 'totalDamageDealtToChampions', 'role', 'teamPosition', 'teamId', 'gameEndedInEarlySurrender', 'win']
     
-    retries = 0
-    max_retries = 10
-    
+
     #expecting API errors
-    while retries < max_retries:
+    for key, value in mastery_dict.items():
+        #store matchlist for each puuid
         try:
-            for key, value in mastery_dict.items():
-                #store matchlist for each puuid
-                match_list = lol_watcher.match.matchlist_by_puuid(region, key, count = num_matches)
-                for match in match_list:
-                    if match not in matches_scanned:
-                        #store match data in variable
-                        match_data = lol_watcher.match.by_id(region, match)
-                        #store participant information in variable to iterate over (list of dicts) if classic game
-                        if match_data['info']['gameMode'] == 'CLASSIC':
-                            player_info = match_data['info']['participants']
-                            #create dict of champs on team1, team2
-                            champions_in_game = {}
-                            champions_in_game[100] = []
-                            champions_in_game[200] = []
-                            for player in player_info:
-                                #add champ played to dict
-                                champions_in_game[player['teamId']].append(player['championId'])
-                                #check to see if player in our list of masters+ players
-                                if player['puuid'] in mastery_dict.keys(): 
-                                    #check to see if player on a high mastery champ
-                                    if player['championId'] in mastery_dict[player['puuid']]:
-                                        #get player data, store in dictionary
-                                        player_data = {}
-                                        for feature in features:
-                                            player_data[feature] = player[feature]
-                                        player_data['match_id'] = match
-                                        player_data['champions_in_game'] = champions_in_game
-                                        #append dictionary to list
-                                        data_rows.append(player_data)
-                                        
-                            #print out to watch progress
-                            #print('champion ID: ',player_data['championId'],', win:',player_data['win'])
-                            #print('champs in game: ',player_data['champions_in_game'])
-                                        
-                        #append match_id to matches_scanned set
-                        matches_scanned.add(match)
-        #error handling
-        except exceptions.Forbidden as e:
-            logging.error(f"Error: {e}")
+            match_list = lol_watcher.match.matchlist_by_puuid(region, key, count = num_matches)
+        
+        except: #TODO: Add better error handling
+            logging.error('API error')
             time.sleep(3)
-            continue
+            match_list = lol_watcher.match.matchlist_by_puuid(region, key, count = num_matches)
 
-        except exceptions.ServiceUnavailable as e:
-            logging.error(f"Error: {e}")
-            time.sleep(3)
-            continue
-
-
+        for match in match_list:
+            if match not in matches_scanned:
+                #store match data in variable
+                try:
+                    match_data = lol_watcher.match.by_id(region, match)
+                except:
+                    logging.error('API error')
+                    time.sleep(3)
+                    match_data = lol_watcher.match.by_id(region, match)
+                #store participant information in variable to iterate over (list of dicts) if classic game
+                if match_data['info']['gameMode'] == 'CLASSIC':
+                    player_info = match_data['info']['participants']
+                    #create dict of champs on team1, team2
+                    champions_in_game = {}
+                    champions_in_game[100] = []
+                    champions_in_game[200] = []
+                    for player in player_info:
+                        #add champ played to dict
+                        champions_in_game[player['teamId']].append(player['championId'])
+                        #check to see if player in our list of masters+ players
+                        if player['puuid'] in mastery_dict.keys(): 
+                            #check to see if player on a high mastery champ
+                            if player['championId'] in mastery_dict[player['puuid']]:
+                                #get player data, store in dictionary
+                                player_data = {}
+                                for feature in features:
+                                    player_data[feature] = player[feature]
+                                player_data['patch'] = match_data['info']['gameVersion']
+                                player_data['match_id'] = match
+                                player_data['champions_in_game'] = champions_in_game
+                                #append dictionary to list
+                                data_rows.append(player_data)
+                                
+                    #print out to watch progress
+                    #print('champion ID: ',player_data['championId'],', win:',player_data['win'])
+                    #print('champs in game: ',player_data['champions_in_game'])
+                                
+                #append match_id to matches_scanned set
+                matches_scanned.add(match)
 
     return data_rows, matches_scanned
 
@@ -174,9 +171,9 @@ def match_to_df(data_rows):
 
     return df
 
-def df_to_sql(df, database='match_entries.db', table_name='player_items_champions'):
+def df_to_sql(df, database='matches.db', table_name='player_items_champions'):
     '''
-    stores dataframe into a sql database. appends data to table if tabel already exists.
+    stores dataframe into a sql database. appends data to table if table already exists.
     '''
     conn = sqlite3.connect(database)
     df.to_sql(name="player_items_champions", con=conn, if_exists='append', index=False)
@@ -205,14 +202,14 @@ if __name__ == '__main__':
     mastery_dict = get_champ_mastery(summoner_ids=summoner_ids, summid_to_puuid=summid_to_puuid)
     logging.info("Champ mastery retrieved.")
 
-    data_rows, matches_scanned = get_match_data(mastery_dict=mastery_dict, num_matches=50)
+    data_rows, matches_scanned = get_match_data(mastery_dict=mastery_dict, num_matches=15)
     logging.info(f"Match data retrieved, {len(matches_scanned)} matches scanned, {len(data_rows)} entries.")
 
     df = match_to_df(data_rows=data_rows)
     logging.info(f"Converted to dataframe object.")
 
     df_to_sql(df=df)
-    logging.info(f"Stored ")
+    logging.info(f"Stored in sql database")
 
 
 
