@@ -1,9 +1,18 @@
-from riotwatcher import LolWatcher, ApiError, exceptions
+from riotwatcher import LolWatcher, ApiError
 import pandas as pd
 import sqlite3
 import argparse
 import logging
 import time
+
+class lol_interface:
+    def __init__(self, api_key):
+        self.api_key = api_key
+        self.lol_watcher = LolWatcher(api_key)
+
+    def update_key(self, api_key):
+        self.api_key = api_key
+        self.lol_watcher = LolWatcher(api_key)
 
 def get_top_players(region):
     '''
@@ -12,13 +21,13 @@ def get_top_players(region):
     '''
 
     #return challengers
-    challengers = lol_watcher.league.challenger_by_queue(region, 'RANKED_SOLO_5x5')
+    challengers = lol_obj.lol_watcher.league.challenger_by_queue(region, 'RANKED_SOLO_5x5')
 
     #return grandmasters
-    gms = lol_watcher.league.grandmaster_by_queue(region, 'RANKED_SOLO_5x5')
+    gms = lol_obj.lol_watcher.league.grandmaster_by_queue(region, 'RANKED_SOLO_5x5')
 
     #return masters
-    masters = lol_watcher.league.masters_by_queue(region, 'RANKED_SOLO_5x5')
+    masters = lol_obj.lol_watcher.league.masters_by_queue(region, 'RANKED_SOLO_5x5')
 
     #list of the above objects
     all_top_players = [challengers, gms, masters]
@@ -40,7 +49,7 @@ def get_puuid(summoner_ids):
     #dict to store vals
     summid_to_puuid = {}
     for summoner in summoner_ids:
-        summid_to_puuid[summoner] =  lol_watcher.summoner.by_id(region, summoner)['puuid']
+        summid_to_puuid[summoner] =  lol_obj.lol_watcher.summoner.by_id(region, summoner)['puuid']
 
     return summid_to_puuid
 
@@ -56,7 +65,7 @@ def get_champ_mastery(summoner_ids, summid_to_puuid, points=100000):
     #fill dict
     for summoner in summoner_ids:
         #make request for champion masteries, store in variable
-        masteries = lol_watcher.champion_mastery.by_summoner(region, summoner)
+        masteries = lol_obj.lol_watcher.champion_mastery.by_summoner(region, summoner)
         
         #loop through, adding high mastery champs to list
         puuid = summid_to_puuid[summoner]
@@ -86,24 +95,32 @@ def get_match_data(mastery_dict, num_matches=10):
 
     #expecting API errors
     for key, value in mastery_dict.items():
+        
         #store matchlist for each puuid
         try:
-            match_list = lol_watcher.match.matchlist_by_puuid(region, key, count = num_matches)
+            match_list = lol_obj.lol_watcher.match.matchlist_by_puuid(region, key, count = num_matches)
         
-        except: #TODO: Add better error handling
-            logging.error('API error')
-            time.sleep(3)
-            match_list = lol_watcher.match.matchlist_by_puuid(region, key, count = num_matches)
+        except ApiError as e:
+            if e.response.status_code == 403:
+                print("bad or expired API key, paste new one here:")
+                api_key = input()
+                lol_obj.update_key(api_key=api_key)
+                match_list = lol_obj.lol_watcher.match.matchlist_by_puuid(region, key, count = num_matches)
 
         for match in match_list:
             if match not in matches_scanned:
+                
                 #store match data in variable
                 try:
-                    match_data = lol_watcher.match.by_id(region, match)
-                except:
-                    logging.error('API error')
-                    time.sleep(3)
-                    match_data = lol_watcher.match.by_id(region, match)
+                    match_data = lol_obj.lol_watcher.match.by_id(region, match)
+
+                except ApiError as e:
+                    if e.response.status_code == 403:
+                        print("bad or expired API key, paste new one here:")
+                        api_key = input()
+                        lol_obj.update_key(api_key=api_key)
+                        match_data = lol_obj.lol_watcher.match.by_id(region, match)
+
                 #store participant information in variable to iterate over (list of dicts) if classic game
                 if match_data['info']['gameMode'] == 'CLASSIC':
                     player_info = match_data['info']['participants']
@@ -190,7 +207,8 @@ if __name__ == '__main__':
     api_key = args.key
     #set region, init lol watcher obj
     region = args.region
-    lol_watcher = LolWatcher(api_key)
+    lol_obj = lol_interface(api_key=api_key)
+    #lol_watcher = LolWatcher(api_key)
     logging.info("LolWatcher object created.")
     
     summoner_ids = get_top_players(region=region)
@@ -210,7 +228,5 @@ if __name__ == '__main__':
 
     df_to_sql(df=df)
     logging.info(f"Stored in sql database")
-
-
 
     
