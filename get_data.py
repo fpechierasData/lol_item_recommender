@@ -1,4 +1,5 @@
 from riotwatcher import LolWatcher, ApiError
+import requests
 import pandas as pd
 import sqlite3
 import argparse
@@ -106,6 +107,12 @@ def get_match_data(mastery_dict, num_matches=10):
                 api_key = input()
                 lol_obj.update_key(api_key=api_key)
                 match_list = lol_obj.lol_watcher.match.matchlist_by_puuid(region, key, count = num_matches)
+        
+        except requests.exceptions.ConnectionError as e:
+            print("Connection error, waiting 10s then resuming operation")
+            time.sleep(secs=10)
+            match_list = lol_obj.lol_watcher.match.matchlist_by_puuid(region, key, count = num_matches)
+
 
         for match in match_list:
             if match not in matches_scanned:
@@ -120,6 +127,11 @@ def get_match_data(mastery_dict, num_matches=10):
                         api_key = input()
                         lol_obj.update_key(api_key=api_key)
                         match_data = lol_obj.lol_watcher.match.by_id(region, match)
+                
+                except requests.exceptions.ConnectionError as e:
+                    print("Connection error, waiting 10s then resuming operation")
+                    time.sleep(secs=10)
+                    match_list = lol_obj.lol_watcher.match.matchlist_by_puuid(region, key, count = num_matches)
 
                 #store participant information in variable to iterate over (list of dicts) if classic game
                 if match_data['info']['gameMode'] == 'CLASSIC':
@@ -220,7 +232,7 @@ if __name__ == '__main__':
     mastery_dict = get_champ_mastery(summoner_ids=summoner_ids, summid_to_puuid=summid_to_puuid)
     logging.info("Champ mastery retrieved.")
 
-    data_rows, matches_scanned = get_match_data(mastery_dict=mastery_dict, num_matches=15)
+    data_rows, matches_scanned = get_match_data(mastery_dict=mastery_dict, num_matches=10)
     logging.info(f"Match data retrieved, {len(matches_scanned)} matches scanned, {len(data_rows)} entries.")
 
     df = match_to_df(data_rows=data_rows)
