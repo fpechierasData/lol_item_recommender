@@ -9,11 +9,15 @@ def load_data():
     conn.close()
     return df
 
-def create_champ_df(data_filepath='data/13.1.1/data/en_US/champion.json', feature_filepath='champ_matrix_filled.csv', save=True):
+def create_champ_df(version_filepath='data/version.json', feature_filepath='data/champ_matrix_filled.csv', save=True):
     """Create dataframe of champions and their attributes"""
 
+    # open json file, get version
+    f = open(version_filepath)
+    version = json.load(f)[0]
+
     # open json file, get data
-    f = open('data/13.1.1/data/en_US/champion.json', encoding="utf8")
+    f = open(f'data/{version}/{version}/data/en_US/champion.json', encoding="utf8")
     champ_data = json.load(f)['data']
 
     # define features we want to keep
@@ -34,12 +38,48 @@ def create_champ_df(data_filepath='data/13.1.1/data/en_US/champion.json', featur
     # create dataframe from list of dictionaries
     champ_df = pd.DataFrame().from_dict(champ_list)
     champ_df = champ_df.drop(labels=['info'], axis=1)
-
+    
     #load in manually-defined feature csv and join with current dataframe
-    champ_features = ['mobility','poke','sustained','burst','engage','disengage','healing']
-    temp_df = pd.read_csv('champ_matrix_filled.csv')
+    champ_features = ['version','id','mobility','poke','sustained','burst','engage','disengage','healing']
+    try:
+        temp_df = pd.read_csv('data/champ_matrix_filled.csv')
+    except:
+        print("Self-annotated data not found at data/champ_matrix_filled.csv. Create this file using the instructions from the github repository, or download it.")
+        raise
+
+    #return any champions present in local datadragon files but not in our manually-created feature matrix
+    new_champs = list(set(champ_df['id']).difference(set(temp_df['id'])))
+    changelist = {}
+    for champ in new_champs:
+        champ_entry = pd.DataFrame({"id": [champ], "version": [version]})
+        print(champ_entry)
+        temp_df = pd.concat([temp_df, champ_entry], ignore_index=True)
+
+        print(f"New champion {champ} needs features added! For each prompt, provide a value from 0-3 for the character, then press enter.\n")
+        champ_attr = {}
+        for f in champ_features[2:]:
+            print(f"{f}: ")
+            champ_attr[f] = int(input()) #TODO: Add input validation
+            temp_df.loc[temp_df['id'] == champ, f] = champ_attr[f]
+        
+        changelist[champ] = champ_attr
+        
+        if save:
+            temp_df.to_csv('data/champ_matrix_filled.csv', index=False)
+    
+
+
     temp_df = temp_df[champ_features]
-    champ_df = pd.concat([champ_df, temp_df], axis=1)
+    
+    champ_df = champ_df.merge(temp_df, how="left", on="id")
+    champ_df["version"] = champ_df["version_x"]
+    champ_df = champ_df.drop(labels=["version_x", "version_y"], axis=1)
+
+    #add new champ features
+    for champ, attr in changelist.items():
+        for key, value in attr.items():
+            champ_df.loc[champ_df['id'] == champ, key] = value
+        print(f"Updated entry for {champ}!")
 
     #one hot encode the tags column, and sum to get back to original row shape
     temp_df = pd.get_dummies(champ_df['tags'].explode(), columns=['tags'])
@@ -54,9 +94,14 @@ def create_champ_df(data_filepath='data/13.1.1/data/en_US/champion.json', featur
     #drop tags and difficulty columns
     champ_df = champ_df.drop(labels=['tags','difficulty'], axis=1)
 
-    #save to csv
+    #move version column back to front
+    cols = champ_df.columns.tolist()
+    cols.remove('version')
+    cols.insert(0, 'version')
+    champ_df = champ_df[cols]
+    
     if save:
-        champ_df.to_csv('champ_df.csv', index=False)
+        champ_df.to_csv('data/champ_df.csv', index=False)
         
     return champ_df
 
