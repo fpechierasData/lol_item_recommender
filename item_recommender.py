@@ -3,6 +3,7 @@ import pandas as pd
 import json
 import os
 import pwd
+import platform
 import argparse
 import requests
 from scipy.spatial import KDTree
@@ -141,22 +142,26 @@ def item_recommendations(result, item_data):
 
     return item_recs_filtered
 
-def get_client_champ_data(system="linux"):
+def get_client_champ_data(install_path=None):
     '''
     Get champ select data from local client
-    system var can take vals linux, windows
+    Auto uses default install directory for each OS, can specify install_path to force
     ''' 
+    system = platform.system()
 
-    #TODO: Add mac support
-    if system == "linux":
-        user_id = os.getuid()
-        user_info = pwd.getpwuid(user_id)
-        username = user_info.pw_name
-        install_path = f"/home/{username}/Games/league-of-legends/drive_c/Riot Games/League of Legends/"
+    if not install_path:
+        if system == "Linux":
+            user_id = os.getuid()
+            user_info = pwd.getpwuid(user_id)
+            username = user_info.pw_name
+            install_path = f"/home/{username}/Games/league-of-legends/drive_c/Riot Games/League of Legends/"
 
-    elif system == "windows":
-        install_path = "C:/Riot Games/League of Legends/"
+        elif system == "Windows":
+            install_path = "C:/Riot Games/League of Legends/"
 
+        elif system == "Darwin":
+            install_path = "/Applications/League of Legends.app/Contents/LoL/"
+            
     f = open(install_path+"lockfile", "r")
     client_info = f.read().split(sep=":")
     f.close()
@@ -206,11 +211,11 @@ def main():
     print('Converting query...')
     
     if args.client:
-        #try:
-        champ_list = get_client_champ_data()
-        #except:
-        #    print('Client not running or no game in progress')
-        #   return
+        try:
+            champ_list = get_client_champ_data()
+        except:
+            print('Client not running or no game in progress')
+            raise
     else:
         champ_names = args.champ_names
         champ_list = champ_name_to_id(champ_df, champ_names)
