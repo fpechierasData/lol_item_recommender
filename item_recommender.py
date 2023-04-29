@@ -9,7 +9,7 @@ from scipy.spatial import KDTree
 requests.packages.urllib3.disable_warnings()
 
 
-def load_df(filepath='match_entry.csv'):
+def load_df(filepath='data/match_entry.csv'):
     """Load data from csv and return as pandas dataframe"""
     df = pd.read_csv(filepath)
     return df
@@ -38,7 +38,7 @@ def create_trees(df):
 
     return kdt_dict
 
-def load_champ_df(champ_df_filepath='champ_df.csv'):
+def load_champ_df(champ_df_filepath='data/champ_df.csv'):
     #load in champ_df
     champ_df = pd.read_csv(champ_df_filepath)
 
@@ -90,9 +90,12 @@ def query(df, champ_list, summed_features, kdt_dict):
 
     return result
 
-def load_item_data(item_data_filepath='data/13.1.1/data/en_US/item.json'):
+def load_item_data(version_filepath='data/version.json'):
     """Load in item data"""
-
+    # open json file, get version
+    f = open(version_filepath)
+    version = json.load(f)[0]
+    item_data_filepath=f'data/{version}/{version}/data/en_US/item.json'
     f = open(item_data_filepath, encoding="utf8")
     item_data = json.load(f)['data']
 

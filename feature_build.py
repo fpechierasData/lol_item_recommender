@@ -4,7 +4,7 @@ import sqlite3
 
 def load_data():
     """Load data from database and return as pandas dataframe"""
-    conn = sqlite3.connect('matches.db')
+    conn = sqlite3.connect('data/matches.db')
     df = pd.read_sql("SELECT * FROM player_items_champions", conn)
     conn.close()
     return df
@@ -151,4 +151,4 @@ if __name__ == "__main__":
     champ_df = create_champ_df()
     print('summing features')
     df = get_summed_features(df, champ_df)
-    df.to_csv('match_entry.csv', index=False) #save to csv
+    df.to_csv('data/match_entry.csv', index=False) #save to csv

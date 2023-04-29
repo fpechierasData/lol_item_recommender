@@ -200,7 +200,7 @@ def match_to_df(data_rows):
 
     return df
 
-def df_to_sql(df, database='matches.db', table_name='player_items_champions'):
+def df_to_sql(df, database='data/matches.db', table_name='player_items_champions'):
     '''
     stores dataframe into a sql database. appends data to table if table already exists.
     '''
