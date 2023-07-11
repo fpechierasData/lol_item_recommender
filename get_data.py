@@ -15,7 +15,7 @@ class lol_interface:
         self.api_key = api_key
         self.lol_watcher = LolWatcher(api_key)
 
-def get_top_players(region):
+def get_top_players(region, testing=False):
     '''
     uses riotwatcher API to retrieve players in challenger, GM, and masters. 
     returns a list of all summoner IDs
@@ -31,7 +31,10 @@ def get_top_players(region):
     masters = lol_obj.lol_watcher.league.masters_by_queue(region, 'RANKED_SOLO_5x5')
 
     #list of the above objects
-    all_top_players = [challengers, gms, masters]
+    if testing:
+        all_top_players = [challengers]
+    else:
+        all_top_players = [challengers, gms, masters]
 
     #loop through and concat all summoner Ids
     summoner_ids = []
@@ -50,7 +53,11 @@ def get_puuid(summoner_ids):
     #dict to store vals
     summid_to_puuid = {}
     for summoner in summoner_ids:
-        summid_to_puuid[summoner] =  lol_obj.lol_watcher.summoner.by_id(region, summoner)['puuid']
+        try:
+            summid_to_puuid[summoner] =  lol_obj.lol_watcher.summoner.by_id(region, summoner)['puuid']
+        except ApiError as e:
+            print(f"{e.response.status_code}: Waiting 10s")
+            time.sleep(10)
 
     return summid_to_puuid
 
@@ -107,11 +114,10 @@ def get_match_data(mastery_dict, num_matches=10):
                 api_key = input()
                 lol_obj.update_key(api_key=api_key)
                 match_list = lol_obj.lol_watcher.match.matchlist_by_puuid(region, key, count = num_matches)
-        
-        except requests.exceptions.ConnectionError as e:
-            print("Connection error, waiting 10s then resuming operation")
-            time.sleep(secs=10)
-            match_list = lol_obj.lol_watcher.match.matchlist_by_puuid(region, key, count = num_matches)
+            else:
+                print(f"{e.response.status_code}: Waiting 10s")
+                time.sleep(secs=10)
+                match_list = lol_obj.lol_watcher.match.matchlist_by_puuid(region, key, count = num_matches)
 
 
         for match in match_list:
@@ -127,11 +133,10 @@ def get_match_data(mastery_dict, num_matches=10):
                         api_key = input()
                         lol_obj.update_key(api_key=api_key)
                         match_data = lol_obj.lol_watcher.match.by_id(region, match)
-                
-                except requests.exceptions.ConnectionError as e:
-                    print("Connection error, waiting 10s then resuming operation")
-                    time.sleep(secs=10)
-                    match_list = lol_obj.lol_watcher.match.matchlist_by_puuid(region, key, count = num_matches)
+                    else:
+                        print("Connection error, waiting 10s then resuming operation")
+                        time.sleep(secs=10)
+                        match_data = lol_obj.lol_watcher.match.by_id(region, match)
 
                 #store participant information in variable to iterate over (list of dicts) if classic game
                 if match_data['info']['gameMode'] == 'CLASSIC':
@@ -223,7 +228,7 @@ if __name__ == '__main__':
     #lol_watcher = LolWatcher(api_key)
     logging.info("LolWatcher object created.")
     
-    summoner_ids = get_top_players(region=region)
+    summoner_ids = get_top_players(region=region, testing=False)
     logging.info(f"Top players stored: {len(summoner_ids)} entries.")
     
     summid_to_puuid = get_puuid(summoner_ids=summoner_ids)
@@ -232,7 +237,7 @@ if __name__ == '__main__':
     mastery_dict = get_champ_mastery(summoner_ids=summoner_ids, summid_to_puuid=summid_to_puuid)
     logging.info("Champ mastery retrieved.")
 
-    data_rows, matches_scanned = get_match_data(mastery_dict=mastery_dict, num_matches=10)
+    data_rows, matches_scanned = get_match_data(mastery_dict=mastery_dict, num_matches=20)
     logging.info(f"Match data retrieved, {len(matches_scanned)} matches scanned, {len(data_rows)} entries.")
 
     df = match_to_df(data_rows=data_rows)

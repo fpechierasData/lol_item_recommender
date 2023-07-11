@@ -1,5 +1,6 @@
 import pandas as pd
 import json
+import logging
 import sqlite3
 
 def load_data():
@@ -146,9 +147,18 @@ def get_summed_features(df, champ_df):
     #return dataframe
     return df
 
+def save_to_db(df, db='data/matches.db', name="match_features"):
+    conn = sqlite3.connect(db)
+    df.to_sql(name, conn, if_exists="append", index=False)
+    conn.close()
+
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
+    logging.info("Loading data...")
     df = load_data()
+    logging.info("Creating features...")
     champ_df = create_champ_df()
-    print('summing features')
     df = get_summed_features(df, champ_df)
-    df.to_csv('data/match_entry.csv', index=False) #save to csv
+    logging.info("Saving to database...")
+    save_to_db(df)
+    logging.info("Great Success!")
