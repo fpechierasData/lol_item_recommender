@@ -12,12 +12,6 @@ from feature_build import load_data
 # Disable SSL warnings
 requests.packages.urllib3.disable_warnings()
 
-
-def load_df(db='data/matches.db', table='match_features'):
-    """Load data from csv and return as pandas dataframe"""
-    df = pd.read_csv(filepath)
-    return df
-
 def normalize_df(df):
     """Normalize the dataframe, keep min and max stored for normalizing new entries"""
     #normalize our columns
