@@ -3,10 +3,10 @@ import json
 import logging
 import sqlite3
 
-def load_data():
+def load_data(db='data/matches.db',table="player_items_champions"):
     """Load data from database and return as pandas dataframe"""
-    conn = sqlite3.connect('data/matches.db')
-    df = pd.read_sql("SELECT * FROM player_items_champions", conn)
+    conn = sqlite3.connect(db)
+    df = pd.read_sql(f"SELECT * FROM {table}", conn)
     conn.close()
     return df
 

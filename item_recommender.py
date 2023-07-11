@@ -7,12 +7,13 @@ import platform
 import argparse
 import requests
 from scipy.spatial import KDTree
+from feature_build import load_data
 
 # Disable SSL warnings
 requests.packages.urllib3.disable_warnings()
 
 
-def load_df(filepath='data/match_entry.csv'):
+def load_df(db='data/matches.db', table='match_features'):
     """Load data from csv and return as pandas dataframe"""
     df = pd.read_csv(filepath)
     return df
@@ -197,7 +198,7 @@ def main():
     
     #load in data
     print('Loading dataframe...')
-    df = load_df()
+    df = load_data(table="match_features")
     #normalize df
     print('Normalizing dataframe...')
     df_scaled, norm_dict = normalize_df(df)
