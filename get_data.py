@@ -3,6 +3,7 @@ import argparse
 import logging
 import time
 import pandas as pd
+from requests.exceptions import ConnectionError
 from riotwatcher import LolWatcher, ApiError
 
 class LolInterface:
@@ -63,6 +64,12 @@ def get_puuid(summoner_ids):
             else:
                 print(f"{e.response.status_code}: Waiting 10s")
                 time.sleep(10)
+                summid_to_puuid[summoner] = lol_obj.lol_watcher.summoner.by_id(region, summoner)['puuid']
+        except ConnectionError as e:
+            print(f"Connection Error, waiting 10s then resuming")
+            time.sleep(10)
+            summid_to_puuid[summoner] = lol_obj.lol_watcher.summoner.by_id(region, summoner)['puuid']
+
 
     return summid_to_puuid
 
@@ -78,7 +85,22 @@ def get_champ_mastery(summoner_ids, summid_to_puuid, points=100000):
     #fill dict
     for summoner in summoner_ids:
         #make request for champion masteries, store in variable
-        masteries = lol_obj.lol_watcher.champion_mastery.by_summoner(region, summoner)
+        try:
+            masteries = lol_obj.lol_watcher.champion_mastery.by_summoner(region, summoner)
+        except ApiError as e:
+            if e.response.status_code == 403:
+                print("bad or expired API key, paste new one here:")
+                api_key = input()
+                lol_obj.update_key(api_key=api_key)
+                masteries = lol_obj.lol_watcher.champion_mastery.by_summoner(region, summoner)
+            else:
+                print(f"{e.response.status_code}: Waiting 10s")
+                time.sleep(10)
+                masteries = lol_obj.lol_watcher.champion_mastery.by_summoner(region, summoner)
+        except ConnectionError as e:
+            print(f"Connection Error, waiting 10s then resuming")
+            time.sleep(10)
+            masteries = lol_obj.lol_watcher.champion_mastery.by_summoner(region, summoner)
 
         #loop through, adding high mastery champs to list
         puuid = summid_to_puuid[summoner]
@@ -125,6 +147,10 @@ def get_match_data(mastery_dict, num_matches=10):
                 time.sleep(10)
                 match_list = lol_obj.lol_watcher.match.matchlist_by_puuid(region, key, count = num_matches)
 
+        except ConnectionError as e:
+            print(f"Connection Error, waiting 10s then resuming")
+            time.sleep(10)
+            match_list = lol_obj.lol_watcher.match.matchlist_by_puuid(region, key, count = num_matches)
 
         for match in match_list:
             if match not in matches_scanned:
@@ -143,6 +169,11 @@ def get_match_data(mastery_dict, num_matches=10):
                         print("Connection error, waiting 10s then resuming operation")
                         time.sleep(10)
                         match_data = lol_obj.lol_watcher.match.by_id(region, match)
+
+                except ConnectionError as e:
+                    print(f"Connection Error, waiting 10s then resuming")
+                    time.sleep(10)
+                    match_data = lol_obj.lol_watcher.match.by_id(region, match)
 
                 #store participant information in variable to iterate over (list of dicts) if classic game
                 if match_data['info']['gameMode'] == 'CLASSIC':
