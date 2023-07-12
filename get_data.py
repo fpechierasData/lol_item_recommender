@@ -1,12 +1,11 @@
-from riotwatcher import LolWatcher, ApiError
-import requests
-import pandas as pd
 import sqlite3
 import argparse
 import logging
 import time
+import pandas as pd
+from riotwatcher import LolWatcher, ApiError
 
-class lol_interface:
+class LolInterface:
     def __init__(self, api_key):
         self.api_key = api_key
         self.lol_watcher = LolWatcher(api_key)
@@ -17,7 +16,7 @@ class lol_interface:
 
 def get_top_players(region, testing=False):
     '''
-    uses riotwatcher API to retrieve players in challenger, GM, and masters. 
+    uses riotwatcher API to retrieve players in challenger, GM, and masters.
     returns a list of all summoner IDs
     '''
 
@@ -54,10 +53,16 @@ def get_puuid(summoner_ids):
     summid_to_puuid = {}
     for summoner in summoner_ids:
         try:
-            summid_to_puuid[summoner] =  lol_obj.lol_watcher.summoner.by_id(region, summoner)['puuid']
+            summid_to_puuid[summoner] = lol_obj.lol_watcher.summoner.by_id(region, summoner)['puuid']
         except ApiError as e:
-            print(f"{e.response.status_code}: Waiting 10s")
-            time.sleep(10)
+            if e.response.status_code == 403:
+                print("bad or expired API key, paste new one here:")
+                api_key = input()
+                lol_obj.update_key(api_key=api_key)
+                summid_to_puuid[summoner] = lol_obj.lol_watcher.summoner.by_id(region, summoner)['puuid']
+            else:
+                print(f"{e.response.status_code}: Waiting 10s")
+                time.sleep(10)
 
     return summid_to_puuid
 
@@ -74,7 +79,7 @@ def get_champ_mastery(summoner_ids, summid_to_puuid, points=100000):
     for summoner in summoner_ids:
         #make request for champion masteries, store in variable
         masteries = lol_obj.lol_watcher.champion_mastery.by_summoner(region, summoner)
-        
+
         #loop through, adding high mastery champs to list
         puuid = summid_to_puuid[summoner]
         mastery_dict[puuid] = []
@@ -86,28 +91,29 @@ def get_champ_mastery(summoner_ids, summid_to_puuid, points=100000):
 
 def get_match_data(mastery_dict, num_matches=10):
     '''
-    takes in mastery_dict and returns a list of dicts of match data, as well as a set of all match IDs scanned
+    takes in mastery_dict and returns a list of dicts of match data,
+    as well as a set of all match IDs scanned
     num_matches: between 1-100
     '''
 
     #create list to store dict objects
     data_rows = []
-                
+
     #store set of matches already looked through
     matches_scanned = set()
 
     #list of features we want to record
-    features = ['puuid', 'championId', 'item0', 'item1', 'item2', 'item3', 'item4', 'item5', 'item6', 
-                'kills', 'deaths', 'assists', 'totalDamageDealtToChampions', 'role', 'teamPosition', 'teamId', 'gameEndedInEarlySurrender', 'win']
-    
+    features = ['puuid', 'championId', 'item0', 'item1', 'item2', 'item3', 'item4',
+                'item5', 'item6', 'kills', 'deaths', 'assists', 'totalDamageDealtToChampions',
+                'role', 'teamPosition', 'teamId', 'gameEndedInEarlySurrender', 'win']
 
     #expecting API errors
     for key, value in mastery_dict.items():
-        
+
         #store matchlist for each puuid
         try:
             match_list = lol_obj.lol_watcher.match.matchlist_by_puuid(region, key, count = num_matches)
-        
+
         except ApiError as e:
             if e.response.status_code == 403:
                 print("bad or expired API key, paste new one here:")
@@ -116,13 +122,13 @@ def get_match_data(mastery_dict, num_matches=10):
                 match_list = lol_obj.lol_watcher.match.matchlist_by_puuid(region, key, count = num_matches)
             else:
                 print(f"{e.response.status_code}: Waiting 10s")
-                time.sleep(secs=10)
+                time.sleep(10)
                 match_list = lol_obj.lol_watcher.match.matchlist_by_puuid(region, key, count = num_matches)
 
 
         for match in match_list:
             if match not in matches_scanned:
-                
+
                 #store match data in variable
                 try:
                     match_data = lol_obj.lol_watcher.match.by_id(region, match)
@@ -135,7 +141,7 @@ def get_match_data(mastery_dict, num_matches=10):
                         match_data = lol_obj.lol_watcher.match.by_id(region, match)
                     else:
                         print("Connection error, waiting 10s then resuming operation")
-                        time.sleep(secs=10)
+                        time.sleep(10)
                         match_data = lol_obj.lol_watcher.match.by_id(region, match)
 
                 #store participant information in variable to iterate over (list of dicts) if classic game
@@ -149,7 +155,7 @@ def get_match_data(mastery_dict, num_matches=10):
                         #add champ played to dict
                         champions_in_game[player['teamId']].append(player['championId'])
                         #check to see if player in our list of masters+ players
-                        if player['puuid'] in mastery_dict.keys(): 
+                        if player['puuid'] in mastery_dict.keys():
                             #check to see if player on a high mastery champ
                             if player['championId'] in mastery_dict[player['puuid']]:
                                 #get player data, store in dictionary
@@ -161,11 +167,11 @@ def get_match_data(mastery_dict, num_matches=10):
                                 player_data['champions_in_game'] = champions_in_game
                                 #append dictionary to list
                                 data_rows.append(player_data)
-                                
+
                     #print out to watch progress
                     #print('champion ID: ',player_data['championId'],', win:',player_data['win'])
                     #print('champs in game: ',player_data['champions_in_game'])
-                                
+
                 #append match_id to matches_scanned set
                 matches_scanned.add(match)
 
@@ -216,24 +222,26 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-k', '--key', required=True, help="Riot Developer API key, found at https://developer.riotgames.com")
-    parser.add_argument('-r', '--region', required=True, help="Region to query data for. Supported values can be found at https://developer.riotgames.com/docs/lol")
+    key_help = "Riot Developer API key, found at https://developer.riotgames.com"
+    region_help = "Region to query data for. Supported values can be found at https://developer.riotgames.com/docs/lol"
+    parser.add_argument('-k', '--key', required=True, help=key_help)
+    parser.add_argument('-r', '--region', required=True, help=region_help)
     args = parser.parse_args()
 
     #riot games api key
     api_key = args.key
     #set region, init lol watcher obj
     region = args.region
-    lol_obj = lol_interface(api_key=api_key)
+    lol_obj = LolInterface(api_key=api_key)
     #lol_watcher = LolWatcher(api_key)
     logging.info("LolWatcher object created.")
-    
+
     summoner_ids = get_top_players(region=region, testing=False)
     logging.info(f"Top players stored: {len(summoner_ids)} entries.")
-    
+
     summid_to_puuid = get_puuid(summoner_ids=summoner_ids)
     logging.info("puuids retrieved.")
-    
+
     mastery_dict = get_champ_mastery(summoner_ids=summoner_ids, summid_to_puuid=summid_to_puuid)
     logging.info("Champ mastery retrieved.")
 
@@ -241,9 +249,7 @@ if __name__ == '__main__':
     logging.info(f"Match data retrieved, {len(matches_scanned)} matches scanned, {len(data_rows)} entries.")
 
     df = match_to_df(data_rows=data_rows)
-    logging.info(f"Converted to dataframe object.")
+    logging.info("Converted to dataframe object.")
 
     df_to_sql(df=df)
-    logging.info(f"Stored in sql database")
-
-    
+    logging.info("Stored in sql database")

@@ -20,7 +20,7 @@ def normalize_df(df):
     norm_dict = {}
     for column in df.columns[31:]:
         norm_dict[column] = [df_scaled[column].max(), df_scaled[column].min()]
-        df_scaled[column] = (df_scaled[column] - df_scaled[column].min()) / (df_scaled[column].max() - df_scaled[column].min()) 
+        df_scaled[column] = (df_scaled[column] - df_scaled[column].min()) / (df_scaled[column].max() - df_scaled[column].min())
 
     return df_scaled, norm_dict
 
@@ -66,7 +66,7 @@ def convert_query(champ_list, champ_df, norm_dict):
 
     #new series to store vals in
     summed_features = pd.Series(data=stats, index=ally_cols+enemy_cols)
-    
+
     #normalize features
     for key, value in norm_dict.items():
         summed_features[key] = (summed_features[key] - value[1]) / (value[0] - value[1])
@@ -80,7 +80,7 @@ def query(df, champ_list, summed_features, kdt_dict):
     indices = kdt_dict[champ_list[0]].query(query, k=15, distance_upper_bound=2.0)
     #retrieve datapoints for desired champion
     result = df[df['championId'] == champ_list[0]].iloc[indices[1]]
-    
+
     #filter out bad performances if pool is deep enough
     mask = (result['kda'] > 3) & (result['win'] == 1)
     if result[mask].shape[0] > 5:
@@ -119,7 +119,7 @@ def filter_items(item_recs, item_data):
                     item_valid = True
                 if item_desc['depth'] == 4: #checking for ornn item, false if so
                     item_valid = False
-        if item_valid:    
+        if item_valid:
             item_recs_filtered.append(item)
 
     return item_recs_filtered
@@ -141,7 +141,7 @@ def get_client_champ_data(install_path=None):
     '''
     Get champ select data from local client
     Auto uses default install directory for each OS, can specify install_path to force
-    ''' 
+    '''
     system = platform.system()
 
     if not install_path:
@@ -156,7 +156,7 @@ def get_client_champ_data(install_path=None):
 
         elif system == "Darwin":
             install_path = "/Applications/League of Legends.app/Contents/LoL/"
-            
+
     f = open(install_path+"lockfile", "r")
     client_info = f.read().split(sep=":")
     f.close()
@@ -189,7 +189,7 @@ def main():
     if args.champ_names is None and args.client is False:
         print('No arguments given, please use -h for help')
         return
-    
+
     #load in data
     print('Loading dataframe...')
     df = load_data(table="match_features")
@@ -204,7 +204,7 @@ def main():
     champ_df = load_champ_df()
     #convert query
     print('Converting query...')
-    
+
     if args.client:
         try:
             champ_list = get_client_champ_data()

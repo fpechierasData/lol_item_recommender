@@ -39,7 +39,7 @@ def create_champ_df(version_filepath='data/version.json', feature_filepath='data
     # create dataframe from list of dictionaries
     champ_df = pd.DataFrame().from_dict(champ_list)
     champ_df = champ_df.drop(labels=['info'], axis=1)
-    
+
     #load in manually-defined feature csv and join with current dataframe
     champ_features = ['version','id','mobility','poke','sustained','burst','engage','disengage','healing']
     try:
@@ -62,16 +62,16 @@ def create_champ_df(version_filepath='data/version.json', feature_filepath='data
             print(f"{f}: ")
             champ_attr[f] = int(input()) #TODO: Add input validation
             temp_df.loc[temp_df['id'] == champ, f] = champ_attr[f]
-        
+
         changelist[champ] = champ_attr
-        
+
         if save:
             temp_df.to_csv('data/champ_matrix_filled.csv', index=False)
-    
+
 
 
     temp_df = temp_df[champ_features]
-    
+
     champ_df = champ_df.merge(temp_df, how="left", on="id")
     champ_df["version"] = champ_df["version_x"]
     champ_df = champ_df.drop(labels=["version_x", "version_y"], axis=1)
@@ -85,7 +85,7 @@ def create_champ_df(version_filepath='data/version.json', feature_filepath='data
     #one hot encode the tags column, and sum to get back to original row shape
     temp_df = pd.get_dummies(champ_df['tags'].explode(), columns=['tags'])
     temp_df = temp_df.groupby(temp_df.index).sum()
-    
+
     #merge temp_df with champ_df
     champ_df = pd.concat([champ_df, temp_df],axis=1)
 
@@ -100,10 +100,10 @@ def create_champ_df(version_filepath='data/version.json', feature_filepath='data
     cols.remove('version')
     cols.insert(0, 'version')
     champ_df = champ_df[cols]
-    
+
     if save:
         champ_df.to_csv('data/champ_df.csv', index=False)
-        
+
     return champ_df
 
 def get_summed_features(df, champ_df):
@@ -111,33 +111,33 @@ def get_summed_features(df, champ_df):
 
     #champ_df indices we want
     cols = champ_df.columns[4:].to_list()
-    
+
     #create unique for ally and enemy sums
     ally_cols = ["ally_" + x for x in cols]
     enemy_cols = ["enemy_" + x for x in cols]
-    
+
     #new dataframe to store vals in
     summed_features = pd.DataFrame(columns=ally_cols+enemy_cols)
-    
+
     for index, row in df.iterrows():
         #enemies list
         enemy_ids = row[21:26].to_list()
         #ally list
         ally_ids = row[26:31].to_list()
-        
+
         #list of vals to fill
         ally_stats = champ_df[champ_df['key'].isin(ally_ids)].sum()[4:].to_list()
         enemy_stats = champ_df[champ_df['key'].isin(enemy_ids)].sum()[4:].to_list()
-        
+
         stats = ally_stats + enemy_stats
         summed_features.loc[len(summed_features)] = stats
-        
+
     #merge with match_ids
     df = pd.concat([df, summed_features], axis=1)
-    
+
     #create KDA column
     df['kda'] = (df['kills'] + df['assists']) / df['deaths']
-    df.loc[df['deaths'] == 0, 'kda'] = df['kills'] + df['assists'] #where deaths = 0, set kd_ratio to kills + assists 
+    df.loc[df['deaths'] == 0, 'kda'] = df['kills'] + df['assists'] #where deaths = 0, set kd_ratio to kills + assists
 
     #move the kda column to the front
     column_to_move = df.pop("kda") #remove column
